@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from app.models.user import User
 from app.database import supabase
 from app.auth import get_current_user
+from app.tasks.task_factory import TaskFactory
 import uuid
 from datetime import datetime
 
@@ -89,8 +90,36 @@ async def get_user_active_workflows(current_user: User = Depends(get_current_use
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get user workflows: {str(e)}")
 
-
-
+@router.post("/execute")
+async def execute_workflow(workflow_id: int, current_user: User = Depends(get_current_user)):
+    """Execute a workflow manually for the current user"""
+    try:
+        # Check if workflow exists
+        workflow_response = supabase.table("workflows").select("*").eq("id", workflow_id).execute()
+        if not workflow_response.data:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        
+        workflow = workflow_response.data[0]
+        
+        # Create task using factory
+        task = TaskFactory.create_task("notion_to_google", workflow_id, workflow["name"])
+        if not task:
+            raise HTTPException(status_code=400, detail="Failed to create workflow task")
+        
+        # Execute the task
+        result = await task.run_with_logging(str(current_user.id))
+        
+        return {
+            "status": "success",
+            "workflow_id": workflow_id,
+            "workflow_name": workflow["name"],
+            "result": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to execute workflow: {str(e)}")
 
 
 @router.get("/logs", response_model=List[Dict[str, Any]])
