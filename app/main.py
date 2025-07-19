@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, workflows
+from app.routes import auth, workflows, health
 from app.celery import celery_app
 import os
 
@@ -30,6 +30,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(workflows.router, prefix="/workflows", tags=["Workflows"])
+app.include_router(health.router, prefix="/health", tags=["Health"])
 
 @app.get("/")
 async def root():
